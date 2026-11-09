@@ -4,7 +4,7 @@
    Nombres, divisas, armas y textos se cambian aquí arriba sin tocar el resto.
    ===================================================================== */
 const GAME_TITLE = 'GENERAL TANQUE';
-const VERSION = 'v0.2';
+const VERSION = 'v0.2.1';
 const CAMPAIGN_NAME = 'Operación Caribe';
 const GANG_NAME = 'La Banda del Tiburón';
 const COIN_NAME = 'Bitcolones';
@@ -143,11 +143,14 @@ function button(scene, x, y, w, h, label, onClick, opts = {}) {
   c.add([shadow, bg, t]);
   c.setScrollFactor(0, 0, true);
   if (!opts.disabled) {
+    // OJO: lo interactivo es el contenedor (objeto de primer nivel), no el rectángulo hijo.
+    // Phaser calcula mal el toque sobre hijos de un contenedor fijo a pantalla cuando la
+    // cámara se movió: el botón dejaba de responder dentro de la partida.
     let pressed = false;
-    bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerdown', () => { pressed = true; bg.setScale(0.96); t.setScale(0.96); });
-    bg.on('pointerout', () => { pressed = false; bg.setScale(1); t.setScale(1); });
-    bg.on('pointerup', () => { bg.setScale(1); t.setScale(1); if (!pressed) return; pressed = false; onClick(); });
+    c.setSize(w, h).setInteractive({ useHandCursor: true });
+    c.on('pointerdown', () => { pressed = true; c.setScale(0.96); });
+    c.on('pointerout', () => { pressed = false; c.setScale(1); });
+    c.on('pointerup', () => { c.setScale(1); if (!pressed) return; pressed = false; onClick(); });
   }
   return c;
 }
