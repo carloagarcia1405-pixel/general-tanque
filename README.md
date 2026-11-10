@@ -19,3 +19,10 @@ PC: http://localhost:8810 · celular en la misma red: http://IP-DE-LA-PC:8810
 `?min=3` stage de 3 minutos · `?stage=2&bot=1` piloto automático · `?speed=10` acelera ·
 `?god=1` sin daño · `?bosshp=0.1` jefe final con 10% de vida · `?scene=Equip` abre esa pantalla.
 `tools/_bot.html` (copiarlo a la raíz para usarlo) muestra el registro del piloto y los errores.
+
+## Animaciones
+- `js/animation.js` genera ocho cuadros de caminata por personaje usando los píxeles de las imágenes originales, sin sustituir el arte de `assets/img/`.
+- Los pasos siguen la distancia recorrida. Al detenerse vuelve la pose original; los vehículos tienen vibración de marcha.
+- Ataques cuerpo a cuerpo, mordidas, lanzamientos y disparos tienen gesto de ataque; el cañón tiene retroceso y los disparos, fogonazo.
+- Las bajas tienen una transición breve y las explosiones combinan destello, onda expansiva, chispas y humo.
+- Todo usa el reloj de la partida: se congela durante la pausa y los menús de mejora. Los efectos se reciclan y tienen un límite para las oleadas grandes.

@@ -35,7 +35,7 @@ function computeStats() {
     dmgMult: (1 + 0.06 * u.dmg) * (1 + g.atk / 100),
     maxHp: 100 + 12 * u.hp + g.hp,
     speed: 150 * (1 + 0.03 * u.speed),
-    magnet: 70 * (1 + 0.15 * u.magnet),
+    magnet: 95 * (1 + 0.15 * u.magnet),
     luck: 1 + 0.08 * u.luck,
   };
 }

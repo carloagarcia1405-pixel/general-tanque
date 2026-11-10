@@ -39,7 +39,7 @@ class GameScene extends Phaser.Scene {
     const st = this.st = STAGES[this.stageIdx];
     this.base = computeStats();
     this.now = 0; this.gt = 0; this.kills = 0; this.coinsRun = 0; this.jocRun = 0; this.dmgDone = 0;
-    this.level = 1; this.xp = 0; this.pendingLevels = 0; this.rerolls = 1; this.revives = 1;
+    this.level = 1; this.xp = 0; this.pendingLevels = 1; // la 1.ª elección es gratis, al arrancar this.rerolls = 1; this.revives = 1;
     this.paused = false; this.uiBlocked = false; this.over = false; this.timerStopped = false;
     this.actives = { canon: 1 }; this.passives = {}; this.primes = {};
     this.enemies = []; this.bigs = []; this.bullets = []; this.ebullets = []; this.gems = []; this.drops = [];
@@ -60,6 +60,7 @@ class GameScene extends Phaser.Scene {
     this.hpBg = this.add.rectangle(0, 0, 62, 9, 0x111111);
     this.hpFill = this.add.rectangle(0, 0, 58, 5, 0x22c55e).setOrigin(0, 0.5);
     this.maitro = this.add.image(0, 0, 'a_maitro').setVisible(false);
+    this.maitroActor = { spr: this.maitro, x: 0, y: 0 };
     this.maitroUntil = 0;
 
     this.recalc(); this.p.hp = this.p.maxHp;
@@ -123,6 +124,7 @@ class GameScene extends Phaser.Scene {
     this.updateBullets(dt);
     this.updateHazards(dt);
     this.updatePickups(dt);
+    ActorMotion.update(this, dt);
     const p = this.p;
     if (this.S.regen && p.hp < p.maxHp) p.hp = Math.min(p.maxHp, p.hp + this.S.regen * dt);
     if (this.pendingLevels > 0 && !this.uiBlocked && !this.over) { this.pendingLevels--; this.openLevelUp(); }
@@ -142,6 +144,8 @@ class GameScene extends Phaser.Scene {
     }
     if (BOT) { const b = this.botMove(); vx = b.x; vy = b.y; }
     const len = Math.hypot(vx, vy);
+    p.moving = len > 0.12;
+    if (p.moving) p.drivePhase = (p.drivePhase || 0) + this.S.spd * Math.min(1, len) * dt / 5;
     if (len > 0.12) {
       const m = Math.min(1, len) / len;
       p.x += vx * m * this.S.spd * dt; p.y += vy * m * this.S.spd * dt;
@@ -201,8 +205,9 @@ class GameScene extends Phaser.Scene {
     if (this.now >= this.crateAt && !this.final) { this.crateAt = this.now + evSec(0.4); this.spawnCrate(); }
     if (this.final) return;
     const vm = this.vm(), horde = this.now < this.hordeUntil;
-    const cap = Math.min(280, 50 + vm * 16) * (horde ? 1.3 : 1);
-    this.spawnAcc += (1.2 + vm * 0.9 + vm * vm * 0.02) * (horde ? 2.5 : 1) * dt;
+    // Arranque con más bandidos (más café = más niveles pronto) sin tocar el final del stage.
+    const cap = Math.min(280, 70 + vm * 15) * (horde ? 1.3 : 1);
+    this.spawnAcc += (2.6 + vm * 0.8 + vm * vm * 0.02) * (horde ? 2.5 : 1) * dt;
     while (this.spawnAcc >= 1) { this.spawnAcc--; if (this.mobCount < cap) { const s = this.edgePoint(); this.spawnMob(this.rollType(), s.x, s.y); } }
   }
   rollType() {
@@ -308,6 +313,8 @@ class GameScene extends Phaser.Scene {
   kill(e) {
     if (e.dead) return;
     this.kills++;
+    ActorMotion.death(this, e);
+    if (e.big || e.ai === 'line') this.blastFx(e.x, e.y, e.big ? 90 : 42, 0xffb347);
     this.puff(e.x, e.y, 0xfff1c1, e.big ? 16 : 4);
     this.dropGem(e);
     const luck = this.base.luck;
@@ -331,10 +338,10 @@ class GameScene extends Phaser.Scene {
     SFX.play('hit');
     if (e.hp <= 0) this.kill(e);
   }
-  explode(x, y, r, dmg, color = 0xffb347) {
+  explode(x, y, r, dmg, color = 0xffb347, sfx = 'boom') {
     r *= this.S.area;
     this.query(x, y, r, e => this.hurt(e, dmg));
-    this.blastFx(x, y, r, color); SFX.play('boom');
+    this.blastFx(x, y, r, color); SFX.play(sfx);
   }
 
   updateEnemies(dt) {
@@ -361,7 +368,7 @@ class GameScene extends Phaser.Scene {
               move = false;
               if (!e.aimSpr) e.aimSpr = this.img('px', e.x, e.y).setTint(0xff3030).setAlpha(0.55).setDepth(-300);
               e.aimSpr.setPosition((e.x + p.x) / 2, (e.y + p.y) / 2).setRotation(Math.atan2(dy, dx)).setScale(d / 4, 0.5);
-              if (now >= e.aimAt) { e.aimAt = 0; this.free(e.aimSpr); e.aimSpr = null; this.fireE(e.x, e.y, Math.atan2(dy, dx), e.d.bspd, e.d.shot * this.dmgMult()); }
+              if (now >= e.aimAt) { e.aimAt = 0; this.free(e.aimSpr); e.aimSpr = null; ActorMotion.attack(this, e, Math.atan2(dy, dx)); this.fireE(e.x, e.y, Math.atan2(dy, dx), e.d.bspd, e.d.shot * this.dmgMult()); }
             }
           } else if (e.ai === 'boom') {
             if (e.fuse) {
@@ -385,6 +392,10 @@ class GameScene extends Phaser.Scene {
         // Contacto con el tanque
         const touch = e.r + p.r * 0.85;
         if (d < touch) {
+          if (e.dmg > 0 && now >= (e.swipeAt || 0)) {
+            e.swipeAt = now + 0.65;
+            ActorMotion.attack(this, e, Math.atan2(dy, dx), true);
+          }
           if (e.dmg > 0 && now >= p.inv) this.damagePlayer(e.dmg);
           if (e.ai !== 'line') { e.x = p.x - (dx / d) * touch; e.y = p.y - (dy / d) * touch; }
         }
@@ -397,13 +408,14 @@ class GameScene extends Phaser.Scene {
   mobShoot(e, dx, dy) {
     const d = e.d, ang = Math.atan2(dy, dx);
     e.cdAt = this.now + d.cd * rnd(0.85, 1.15);
-    if (e.ai === 'lob') { this.hazard(this.p.x, this.p.y, 58, 1.0, 2.6, d.shot * this.dmgMult(), 'fire'); return; }
+    if (e.ai === 'lob') { ActorMotion.attack(this, e, ang, true); this.hazard(this.p.x, this.p.y, 58, 1.0, 2.6, d.shot * this.dmgMult(), 'fire'); return; }
     if (d.aim) { e.aimAt = this.now + d.aim; return; }
     const n = d.burst || 1;
-    for (let i = 0; i < n; i++) this.after(i * 0.14, () => { if (!e.dead) this.fireE(e.x, e.y, ang + rnd(-0.06, 0.06), d.bspd, d.shot * this.dmgMult()); });
+    for (let i = 0; i < n; i++) this.after(i * 0.14, () => { if (!e.dead) { ActorMotion.attack(this, e, ang); this.fireE(e.x, e.y, ang + rnd(-0.06, 0.06), d.bspd, d.shot * this.dmgMult()); } });
   }
   fireE(x, y, ang, speed, dmg, tex = 'ebullet') {
     if (this.ebullets.length > 260) return;
+    ActorMotion.muzzle(this, x + Math.cos(ang) * 20, y + Math.sin(ang) * 20, ang, 0.65);
     this.ebullets.push({ x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, dmg, die: this.now + 5, spr: this.img(tex, x, y).setDepth(UI_DEPTH - 20) });
   }
   hazard(x, y, r, arm, dur, dmg, kind) {
@@ -417,11 +429,11 @@ class GameScene extends Phaser.Scene {
     const p = this.p, now = this.now, ux = dx / d, uy = dy / d, ang = Math.atan2(dy, dx);
     const rage = e.boss && e.hp < e.maxHp * 0.5 ? 0.68 : 1;
     const bd = e.dmg * 0.5;
-    const fan = (n, spread, speed, a0 = ang) => { for (let i = 0; i < n; i++) this.fireE(e.x, e.y, a0 + (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread), speed, bd); };
-    const ring = (n, speed, off = 0) => { for (let i = 0; i < n; i++) this.fireE(e.x, e.y, off + i / n * TAU, speed, bd); };
-    const summon = (type, n, x = e.x, y = e.y) => { for (let i = 0; i < n; i++) this.spawnMob(type, x + rnd(-70, 70), y + rnd(-30, 60)); };
+    const fan = (n, spread, speed, a0 = ang) => { ActorMotion.attack(this, e, a0); for (let i = 0; i < n; i++) this.fireE(e.x, e.y, a0 + (n === 1 ? 0 : (i / (n - 1) - 0.5) * spread), speed, bd); };
+    const ring = (n, speed, off = 0) => { ActorMotion.attack(this, e, ang); for (let i = 0; i < n; i++) this.fireE(e.x, e.y, off + i / n * TAU, speed, bd); };
+    const summon = (type, n, x = e.x, y = e.y) => { ActorMotion.attack(this, e, ang, true); for (let i = 0; i < n; i++) this.spawnMob(type, x + rnd(-70, 70), y + rnd(-30, 60)); };
     const charge = (cd, speed = 430) => {
-      if (e.mode === 'walk' && now >= e.t2) { e.mode = 'aim'; e.t4 = now + 0.8; e.cx = ux; e.cy = uy; }
+      if (e.mode === 'walk' && now >= e.t2) { ActorMotion.attack(this, e, ang, true); e.mode = 'aim'; e.t4 = now + 0.8; e.cx = ux; e.cy = uy; }
       else if (e.mode === 'aim') { e.spr.setTint((Math.floor(now * 12) % 2) ? 0xff6050 : 0xffffff); if (now >= e.t4) { e.mode = 'dash'; e.t4 = now + 0.65; e.cx = ux; e.cy = uy; e.spr.clearTint(); } }
       else if (e.mode === 'dash') { e.x += e.cx * speed * dt; e.y += e.cy * speed * dt; if (now >= e.t4) { e.mode = 'walk'; e.t2 = now + cd * rage; return true; } }
       return false;
@@ -441,11 +453,12 @@ class GameScene extends Phaser.Scene {
       if (now >= e.t3) { e.t3 = now + 11 * rage; summon('runner', 6); if (rage < 1) ring(14, 180); }
     } else if (e.ai === 'gallo') {
       walk();
-      if (now >= e.t1) { e.t1 = now + 0.13; const on = (now % 5.5) < 3; if (on) { e.a += 0.33; this.fireE(e.x, e.y, e.a, 185, bd); this.fireE(e.x, e.y, e.a + Math.PI, 185, bd); } }
+      if (now >= e.t1) { e.t1 = now + 0.13; const on = (now % 5.5) < 3; if (on) { ActorMotion.attack(this, e, e.a); e.a += 0.33; this.fireE(e.x, e.y, e.a, 185, bd); this.fireE(e.x, e.y, e.a + Math.PI, 185, bd); } }
       if (now >= e.t2) { e.t2 = now + 7 * rage; ring(rage < 1 ? 24 : 18, 160, rnd(0, 1)); }
       if (now >= e.t3) { e.t3 = now + 12 * rage; summon('knives', 5); }
     } else if (e.ai === 'patron') {
       if (now >= e.t1) {
+        ActorMotion.attack(this, e, ang, true);
         e.t1 = now + 2.4 * rage;
         const n = rage < 1 ? 4 : 3;
         for (let i = 0; i < n; i++) {
@@ -461,6 +474,7 @@ class GameScene extends Phaser.Scene {
     if (!e.fixed) {
       if (this.final) { e.x = Phaser.Math.Clamp(e.x, this.final.cx - W / 2 + 50, this.final.cx + W / 2 - 50); e.y = Phaser.Math.Clamp(e.y, this.final.cy - H / 2 + 170, this.final.cy + H / 2 - 60); }
       const touch = e.r + p.r * 0.8;
+      if (d < touch && now >= (e.swipeAt || 0)) { e.swipeAt = now + 0.7; ActorMotion.attack(this, e, ang, true); }
       if (d < touch && now >= p.inv) this.damagePlayer(e.dmg);
       e.spr.setFlipX(e.boss ? false : dx < 0);
       e.spr.setPosition(e.x, e.y + Math.sin(now * 5) * 2).setDepth(e.y + e.half);
@@ -498,10 +512,11 @@ class GameScene extends Phaser.Scene {
     if (P.canon) this.turret.setTint(0xffb070);
   }
   shoot(x, y, ang, o) {
+    ActorMotion.muzzle(this, x + Math.cos(ang) * 10, y + Math.sin(ang) * 10, ang, o.tex === 'w_shell' || o.tex === 'fireball' ? 1.15 : 0.6);
     const sp = (o.speed || 520) * this.S.proj;
     const spr = this.img(o.tex || 'bullet', x, y).setRotation(ang).setScale(o.scale || 1).setDepth(UI_DEPTH - 40);
     if (o.tint) spr.setTint(o.tint);
-    this.bullets.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, dmg: o.dmg, r: o.r || 7, pierce: o.pierce || 0, aoe: o.aoe || 0, die: this.now + (o.life || 1), spr, seen: null });
+    this.bullets.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, dmg: o.dmg, r: o.r || 7, pierce: o.pierce || 0, aoe: o.aoe || 0, sfx: o.sfx, die: this.now + (o.life || 1), spr, seen: null });
   }
 
   updateWeapons(dt) {
@@ -515,8 +530,9 @@ class GameScene extends Phaser.Scene {
       wt.canon = now + w.cd * w.cdMul[l - 1] * S.cd;
       for (let i = 0; i < shots; i++) this.after(i * 0.11, () => {
         const a = this.p.tur, mx = this.p.x + Math.cos(a) * 58, my = this.p.y + Math.sin(a) * 58;
-        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, pierce: 3, aoe: 58, r: 10, speed: 480 });
-        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560 });
+        this.p.shotAt = this.now;
+        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, pierce: 3, aoe: w.pAoe, r: 10, speed: 480 });
+        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560, aoe: w.aoe[l - 1], r: 9, sfx: 'hit' });
         SFX.play('shot');
       });
     }
@@ -531,6 +547,7 @@ class GameScene extends Phaser.Scene {
         this.maitroUntil = now + 1.1;
         for (let i = 0; i < n; i++) this.after(i * 0.09, () => {
           const t = pick(near), tx = t.dead ? t.x + rnd(-30, 30) : t.x, ty = t.y;
+          ActorMotion.attack(this, this.maitroActor, Math.atan2(ty - this.p.y, tx - this.p.x), true);
           this.rockets.push({ sx: this.p.x - 44, sy: this.p.y - 20, tx, ty, t: 0, dur: 0.75, dmg: this.wdmg('cohetes'), aoe: P.cohetes ? 82 : w.aoe, spr: this.img('w_rocket', this.p.x, this.p.y).setDepth(UI_DEPTH - 30) });
         });
       }
@@ -545,6 +562,7 @@ class GameScene extends Phaser.Scene {
       const t = this.nearest(g.x, g.y, 380);
       if (t) g.spr.setFlipX(t.x < g.x);
       if (t && now >= wt.cam) {
+        ActorMotion.attack(this, g, Math.atan2(t.y - g.y, t.x - g.x));
         wt.cam = now + (P.cam ? 0.55 : w.cd[l - 1]) * S.cd;
         const a = Math.atan2(t.y - g.y, t.x - g.x), dmg = this.wdmg('cam');
         if (P.cam) for (let i = 0; i < 5; i++) this.shoot(g.x, g.y, a + (i - 2) * 0.14, { dmg, pierce: 3, tint: 0x9fd0ff, life: 0.7 });
@@ -567,6 +585,7 @@ class GameScene extends Phaser.Scene {
           for (let j = 0; j < burst; j++) this.after(j * 0.08, () => {
             if (t.dead && !this.nearest(s.x, s.y, 400)) return;
             const tt = t.dead ? this.nearest(s.x, s.y, 400) : t, an = Math.atan2(tt.y - s.y, tt.x - s.x) + rnd(-0.05, 0.05);
+            ActorMotion.attack(this, s, an);
             this.shoot(s.x, s.y, an, P.fuerzas ? { dmg, pierce: 2, aoe: 30, tint: 0xff9a4a } : { dmg, tint: 0xc8ff8a });
           });
         }
@@ -589,6 +608,7 @@ class GameScene extends Phaser.Scene {
           else {
             const dx = t.x - g.x, dy = t.y - g.y, d = Math.hypot(dx, dy) || 1; g.spr.setFlipX(dx < 0);
             if (d < t.r + 14) {
+              ActorMotion.attack(this, g, Math.atan2(dy, dx), true);
               if (P.kaisers) this.explode(t.x, t.y, 52, dmg, 0xfff0b0); else { this.hurt(t, dmg); if (!t.big && !t.dead) { t.kx = dx / d * 240; t.ky = dy / d * 240; } }
               g.mode = 'idle'; g.target = null; g.cd = now + (P.kaisers ? 0.25 : 0.5) * S.cd;
             } else { g.x += dx / d * sp * dt; g.y += dy / d * sp * dt; }
@@ -638,7 +658,7 @@ class GameScene extends Phaser.Scene {
       let gone = now >= b.die, hitOne = null;
       if (!gone) this.query(b.x, b.y, b.r, e => { if (!hitOne && !(b.seen && b.seen.includes(e))) hitOne = e; });
       if (hitOne) {
-        if (b.aoe) this.explode(b.x, b.y, b.aoe, b.dmg); else this.hurt(hitOne, b.dmg);
+        if (b.aoe) this.explode(b.x, b.y, b.aoe, b.dmg, undefined, b.sfx); else this.hurt(hitOne, b.dmg);
         if (b.pierce > 0) { b.pierce--; (b.seen || (b.seen = [])).push(hitOne); } else gone = true;
       }
       if (gone) { this.free(b.spr); this.bullets.splice(i, 1); }
@@ -664,6 +684,7 @@ class GameScene extends Phaser.Scene {
     for (let i = this.fx.length - 1; i >= 0; i--) {
       const f = this.fx[i], t = (now - f.t0) / f.dur;
       if (t >= 1) { this.free(f.spr); this.fx.splice(i, 1); continue; }
+      if (ActorMotion.updateFx(f, t, dt)) continue;
       if (f.blast) f.spr.setScale(f.s0 + (f.s1 - f.s0) * t).setAlpha(0.55 * (1 - t));
       else { f.spr.x += f.vx * dt; f.spr.y += f.vy * dt; f.spr.setAlpha(1 - t); }
     }
@@ -674,10 +695,14 @@ class GameScene extends Phaser.Scene {
     }
   }
   puff(x, y, color, n) {
-    if (this.fx.length > 140) return;
+    n = Math.min(n, Math.max(0, 220 - this.fx.length));
     for (let i = 0; i < n; i++) { const a = rnd(0, TAU), s = rnd(40, 130); this.fx.push({ spr: this.img('px', x, y).setTint(color).setDepth(UI_DEPTH - 45), vx: Math.cos(a) * s, vy: Math.sin(a) * s, t0: this.now, dur: rnd(0.25, 0.5) }); }
   }
   blastFx(x, y, r, color) {
+    if (this.fx.length > 205) return;
+    this.fx.push({ kind: 'shock', spr: this.img('ring', x, y).setTint(color).setDepth(UI_DEPTH - 47), s0: r / 64 * 0.15, s1: r / 64 * 1.18, t0: this.now, dur: 0.4 });
+    this.fx.push({ blast: true, spr: this.img('disc', x, y).setTint(0xfff1bd).setDepth(UI_DEPTH - 44), s0: r / 64 * 0.12, s1: r / 64 * 0.5, t0: this.now, dur: 0.12 });
+    for (let i = 0; i < 3; i++) this.fx.push({ kind: 'smoke', spr: this.img('disc', x + rnd(-r * 0.2, r * 0.2), y + rnd(-r * 0.2, r * 0.2)).setTint(0x544638).setDepth(UI_DEPTH - 48), s0: r / 64 * 0.1, s1: r / 64 * 0.45, t0: this.now, dur: 0.55 + i * 0.08 });
     this.fx.push({ blast: true, spr: this.img('disc', x, y).setTint(color).setDepth(UI_DEPTH - 46).setScale(0.1), s0: r / 64 * 0.3, s1: r / 64, t0: this.now, dur: 0.28 });
     this.puff(x, y, 0xfff0a0, 5);
   }
@@ -782,8 +807,11 @@ class GameScene extends Phaser.Scene {
     this.ground.tilePositionX = cam.scrollX; this.ground.tilePositionY = cam.scrollY;
     if (p.hurtAt && now > p.hurtAt) { p.hurtAt = 0; this.hull.setTint(this.skinTint); this.turret.setTint(this.primes.canon ? 0xffb070 : this.skinTint); }
     this.pShadow.setPosition(p.x, p.y + 6).setDepth(p.y - 2);
-    this.hull.setPosition(p.x, p.y).setRotation(p.ang).setDepth(p.y);
-    this.turret.setPosition(p.x, p.y).setRotation(p.tur).setDepth(p.y + 1);
+    const rumble = p.moving ? Math.sin(p.drivePhase || 0) * 0.65 : 0;
+    const shotAge = now - (p.shotAt ?? -10);
+    const recoil = shotAge >= 0 && shotAge < 0.18 ? Math.sin(shotAge / 0.18 * Math.PI) * 5 : 0;
+    this.hull.setPosition(p.x, p.y + rumble).setRotation(p.ang + (p.moving ? Math.sin((p.drivePhase || 0) * 0.7) * 0.008 : 0)).setDepth(p.y);
+    this.turret.setPosition(p.x - Math.cos(p.tur) * recoil, p.y + rumble - Math.sin(p.tur) * recoil).setRotation(p.tur).setDepth(p.y + 1);
     this.hpBg.setPosition(p.x, p.y + 48).setDepth(p.y + 60);
     const f = Math.max(0, p.hp / p.maxHp);
     this.hpFill.setPosition(p.x - 29, p.y + 48).setDepth(p.y + 61).setScale(f, 1).setFillStyle(f > 0.5 ? 0x22c55e : f > 0.25 ? 0xfacc15 : 0xef4444);

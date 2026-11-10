@@ -13,6 +13,7 @@ class BootScene extends Phaser.Scene {
   }
   create() {
     makeFxTextures(this);
+    ActorMotion.prepare(this);
     if (BOT) this.scene.start('Game', { stage: parseInt(QS.get('stage') || '1', 10) });
     else this.scene.start(QS.get('scene') || 'Menu');
   }

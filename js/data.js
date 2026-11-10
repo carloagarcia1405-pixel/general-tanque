@@ -32,8 +32,8 @@ const UI_DEPTH = 1e7;
 /* ---------------- Armas (5 niveles; con su pasiva pareja llegan a PRIME) ---------------- */
 const ACTIVES = {
   canon: { name: 'Cañón del Tanque', pair: 'municion', prime: 'Cañón Izalco',
-    lv: ['Dispara al bandido más cercano', '+30% de daño', 'Dispara 2 balas seguidas', '+30% de daño y recarga más rápido', 'Dispara 3 balas seguidas'],
-    primeDesc: 'Balas de lava que atraviesan y explotan' },
+    lv: ['Obús que revienta en área sobre el bandido más cercano', '+30% de daño y explosión más grande', 'Dispara 2 obuses seguidos', '+30% de daño y recarga más rápido', 'Dispara 3 obuses seguidos'],
+    primeDesc: 'Bolas de lava que atraviesan y revientan en área gigante' },
   cohetes: { name: 'Cohetes de Vara', pair: 'polvora', prime: 'Castillo de Pólvora',
     lv: ['El maitro de la fiesta patronal bombardea bandidos al azar', '3 cohetes por tanda', '4 cohetes y +25% de daño', '5 cohetes por tanda', '6 cohetes y +25% de daño'],
     primeDesc: '10 cohetes con explosión gigante, más seguido' },
@@ -57,7 +57,7 @@ const ACTIVES = {
     primeDesc: '6 machetes que nunca dejan de girar' },
 };
 const W_STATS = {
-  canon:      { dmg: 10, cd: 0.9, shots: [1, 1, 2, 2, 3], mul: [1, 1.3, 1.3, 1.7, 1.7], cdMul: [1, 1, 1, 0.85, 0.85], pMul: 2.4 },
+  canon:      { dmg: 10, cd: 0.75, shots: [1, 1, 2, 2, 3], mul: [1, 1.3, 1.3, 1.7, 1.7], cdMul: [1, 1, 1, 0.85, 0.85], aoe: [46, 52, 56, 62, 68], pAoe: 80, pMul: 2.4 },
   cohetes:    { dmg: 18, cd: 4.2, n: [2, 3, 4, 5, 6], mul: [1, 1, 1.25, 1.25, 1.5], aoe: 55, pMul: 2.2 },
   kaisers:    { dmg: 14, n: [1, 2, 2, 3, 4], mul: [1, 1, 1.4, 1.4, 1.8], pMul: 2.6 },
   cam:        { dmg: 9, cd: [0.8, 0.8, 0.62, 0.62, 0.48], shots: [1, 1, 1, 2, 2], mul: [1, 1.3, 1.3, 1.6, 1.6], pMul: 2.0 },
@@ -78,7 +78,8 @@ const PASSIVES = {
 };
 const pairOf = pid => Object.keys(ACTIVES).find(a => ACTIVES[a].pair === pid);
 const skillIcon = id => 'ic_' + id;
-const xpNeed = l => Math.floor(5 + l * 3 + l * l * 0.1);
+// Curva rápida al inicio (nivel 2 con 4 cafés) y que se va endureciendo.
+const xpNeed = l => Math.floor(3 + l * 1.6 + l * l * 0.16);
 
 /* ---------------- Objetos del mapa ---------------- */
 const ITEMS = {
