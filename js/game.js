@@ -39,7 +39,7 @@ class GameScene extends Phaser.Scene {
     const st = this.st = STAGES[this.stageIdx];
     this.base = computeStats();
     this.now = 0; this.gt = 0; this.kills = 0; this.coinsRun = 0; this.jocRun = 0; this.dmgDone = 0;
-    this.level = 1; this.xp = 0; this.pendingLevels = 1; // la 1.ª elección es gratis, al arrancar this.rerolls = 1; this.revives = 1;
+    this.level = 1; this.xp = 0; this.pendingLevels = 0; this.rerolls = 1; this.revives = 1;
     this.paused = false; this.uiBlocked = false; this.over = false; this.timerStopped = false;
     this.actives = { canon: 1 }; this.passives = {}; this.primes = {};
     this.enemies = []; this.bigs = []; this.bullets = []; this.ebullets = []; this.gems = []; this.drops = [];
@@ -516,7 +516,7 @@ class GameScene extends Phaser.Scene {
     const sp = (o.speed || 520) * this.S.proj;
     const spr = this.img(o.tex || 'bullet', x, y).setRotation(ang).setScale(o.scale || 1).setDepth(UI_DEPTH - 40);
     if (o.tint) spr.setTint(o.tint);
-    this.bullets.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, dmg: o.dmg, r: o.r || 7, pierce: o.pierce || 0, aoe: o.aoe || 0, sfx: o.sfx, die: this.now + (o.life || 1), spr, seen: null });
+    this.bullets.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp, dmg: o.dmg, r: o.r || 7, pierce: o.pierce || 0, aoe: o.aoe || 0, sfx: o.sfx, boomEnd: !!o.boomEnd, die: this.now + (o.life || 1), spr, seen: null });
   }
 
   updateWeapons(dt) {
@@ -528,11 +528,14 @@ class GameScene extends Phaser.Scene {
     if (now >= wt.canon && tgt) {
       const w = W_STATS.canon, l = A.canon, shots = P.canon ? 3 : w.shots[l - 1];
       wt.canon = now + w.cd * w.cdMul[l - 1] * S.cd;
+      // El obús nunca atraviesa: revienta al primer bandido que toca o al llegar a donde apuntó.
       for (let i = 0; i < shots; i++) this.after(i * 0.11, () => {
         const a = this.p.tur, mx = this.p.x + Math.cos(a) * 58, my = this.p.y + Math.sin(a) * 58;
+        const t = tgt.dead ? this.nearest(this.p.x, this.p.y, 470) || tgt : tgt;
+        const dist = Math.max(30, Math.hypot(t.x - mx, t.y - my));
         this.p.shotAt = this.now;
-        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, pierce: 3, aoe: w.pAoe, r: 10, speed: 480 });
-        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560, aoe: w.aoe[l - 1], r: 9, sfx: 'hit' });
+        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, aoe: w.pAoe, r: 10, speed: 480, life: dist / (480 * this.S.proj), boomEnd: true });
+        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560, aoe: w.aoe[l - 1], r: 9, sfx: 'hit', life: dist / (560 * this.S.proj), boomEnd: true });
         SFX.play('shot');
       });
     }
@@ -660,7 +663,7 @@ class GameScene extends Phaser.Scene {
       if (hitOne) {
         if (b.aoe) this.explode(b.x, b.y, b.aoe, b.dmg, undefined, b.sfx); else this.hurt(hitOne, b.dmg);
         if (b.pierce > 0) { b.pierce--; (b.seen || (b.seen = [])).push(hitOne); } else gone = true;
-      }
+      } else if (gone && b.boomEnd) this.explode(b.x, b.y, b.aoe, b.dmg, undefined, b.sfx);
       if (gone) { this.free(b.spr); this.bullets.splice(i, 1); }
     }
     // Cohetes (propios y del patrón): vuelan en arco y revientan al caer
