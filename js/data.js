@@ -32,7 +32,7 @@ const UI_DEPTH = 1e7;
 /* ---------------- Armas (5 niveles; con su pasiva pareja llegan a PRIME) ---------------- */
 const ACTIVES = {
   canon: { name: 'Cañón del Tanque', pair: 'municion', prime: 'Cañón Izalco',
-    lv: ['Obús que revienta en área sobre el bandido más cercano', '+30% de daño y explosión más grande', 'Dispara 2 obuses seguidos', '+30% de daño y recarga más rápido', 'Dispara 3 obuses seguidos'],
+    lv: ['Obús hacia donde mira el tanque que revienta en área', '+30% de daño y explosión más grande', 'Dispara 2 obuses seguidos', '+30% de daño y recarga más rápido', 'Dispara 3 obuses seguidos'],
     primeDesc: 'Bolas de lava que revientan en un área gigante' },
   cohetes: { name: 'Cohetes de Vara', pair: 'polvora', prime: 'Castillo de Pólvora',
     lv: ['El maitro de la fiesta patronal bombardea bandidos al azar', '3 cohetes por tanda', '4 cohetes y +25% de daño', '5 cohetes por tanda', '6 cohetes y +25% de daño'],
@@ -57,7 +57,8 @@ const ACTIVES = {
     primeDesc: '6 machetes que nunca dejan de girar' },
 };
 const W_STATS = {
-  canon:      { dmg: 10, cd: 0.75, shots: [1, 1, 2, 2, 3], mul: [1, 1.3, 1.3, 1.7, 1.7], cdMul: [1, 1, 1, 0.85, 0.85], aoe: [46, 52, 56, 62, 68], pAoe: 95, pMul: 2.4 },
+  // dmg 20 = mata de un tiro a los primeros bandidos del stage 1 (thug 12, runner 7, knives 10, rott 14).
+  canon:      { dmg: 20, cd: 0.75, range: 400, shots: [1, 1, 2, 2, 3], mul: [1, 1.3, 1.3, 1.7, 1.7], cdMul: [1, 1, 1, 0.85, 0.85], aoe: [72, 80, 88, 96, 106], pAoe: 135, pMul: 2.4 },
   cohetes:    { dmg: 18, cd: 4.2, n: [2, 3, 4, 5, 6], mul: [1, 1, 1.25, 1.25, 1.5], aoe: 55, pMul: 2.2 },
   kaisers:    { dmg: 14, n: [1, 2, 2, 3, 4], mul: [1, 1, 1.4, 1.4, 1.8], pMul: 2.6 },
   cam:        { dmg: 9, cd: [0.8, 0.8, 0.62, 0.62, 0.48], shots: [1, 1, 1, 2, 2], mul: [1, 1.3, 1.3, 1.6, 1.6], pMul: 2.0 },

@@ -523,19 +523,18 @@ class GameScene extends Phaser.Scene {
     const p = this.p, now = this.now, A = this.actives, P = this.primes, S = this.S, wt = this.wt;
 
     // Cañón
-    const tgt = this.nearest(p.x, p.y, 470);
-    if (tgt) p.tur = Phaser.Math.Angle.RotateTo(p.tur, Math.atan2(tgt.y - p.y, tgt.x - p.x), 12 * dt);
+    // Apuntado manual: la torreta mira hacia donde va el tanque. Dispara solo si hay bandidos cerca.
+    p.tur = Phaser.Math.Angle.RotateTo(p.tur, p.ang, 14 * dt);
+    const tgt = this.nearest(p.x, p.y, 520);
     if (now >= wt.canon && tgt) {
       const w = W_STATS.canon, l = A.canon, shots = P.canon ? 3 : w.shots[l - 1];
       wt.canon = now + w.cd * w.cdMul[l - 1] * S.cd;
-      // El obús nunca atraviesa: revienta al primer bandido que toca o al llegar a donde apuntó.
+      // El obús nunca atraviesa: revienta al primer bandido que toca o al terminar su recorrido.
       for (let i = 0; i < shots; i++) this.after(i * 0.11, () => {
         const a = this.p.tur, mx = this.p.x + Math.cos(a) * 58, my = this.p.y + Math.sin(a) * 58;
-        const t = tgt.dead ? this.nearest(this.p.x, this.p.y, 470) || tgt : tgt;
-        const dist = Math.max(30, Math.hypot(t.x - mx, t.y - my));
         this.p.shotAt = this.now;
-        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, aoe: w.pAoe, r: 10, speed: 480, life: dist / (480 * this.S.proj), boomEnd: true });
-        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560, aoe: w.aoe[l - 1], r: 9, sfx: 'hit', life: dist / (560 * this.S.proj), boomEnd: true });
+        if (P.canon) this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'fireball', scale: 0.6, aoe: w.pAoe, r: 12, speed: 480, life: w.range / (480 * this.S.proj), boomEnd: true });
+        else this.shoot(mx, my, a, { dmg: this.wdmg('canon'), tex: 'w_shell', speed: 560, aoe: w.aoe[l - 1], r: 10, sfx: 'hit', life: w.range / (560 * this.S.proj), boomEnd: true });
         SFX.play('shot');
       });
     }
